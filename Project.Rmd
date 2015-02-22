@@ -1,0 +1,94 @@
+---
+title: "Machine Learning Project"
+author: "Cheeseng Chow"
+date: "February 21, 2015"
+output:
+  html_document:
+    keep_md: yes
+---
+
+## Synopsis
+We use the random forest machine learning algorithm to predict the kinds of exercise ("classe") from smartphone data. We will also measure the efficacy of the algorithm.
+
+## Overview
+We will first load caret and random forest and read in the training and test data.
+```{r,results='hide', message=FALSE, warning=FALSE}
+library(caret)
+library(randomForest)
+pml.train <- read.csv("pml-training.csv")
+```
+
+## Cross Validation
+For cross validation, we'll randomly select 25% of the train data for testing and use the remaining 75% for model training. We will use the test data to predict how well the algorithm perform on the real test data.
+```{r}
+set.seed(12345)
+inTrain <- createDataPartition(y=pml.train$classe, p=0.75, list=FALSE)
+train <- pml.train[inTrain,]
+test <- pml.train[-inTrain,]
+```
+
+## Relevant Columns 
+Instead of removing columns from the training data, we will identify relevant columns and construct an appropriate formula using only the relevant formula. The basic criteria is the column should not have any NA or blanks:
+```{r}
+colnames(pml.train[,!sapply(pml.train, function(x) any(is.na(x) | x ==""))])
+```
+
+We will ignore the first 7 columns as well. So the training formula is as follows:
+```{r}
+formula <- classe ~ roll_belt + pitch_belt + yaw_belt + total_accel_belt + gyros_belt_x +
+  gyros_belt_y + gyros_belt_z + accel_belt_x + accel_belt_y +
+  accel_belt_z + magnet_belt_x + magnet_belt_y + magnet_belt_z +
+  roll_arm + pitch_arm + yaw_arm + total_accel_arm +
+  gyros_arm_x + gyros_arm_y + gyros_arm_z + accel_arm_x +
+  accel_arm_y + accel_arm_z + magnet_arm_x + magnet_arm_y +
+  magnet_arm_z + roll_dumbbell + pitch_dumbbell + yaw_dumbbell +
+  total_accel_dumbbell + gyros_dumbbell_x + gyros_dumbbell_y + gyros_dumbbell_z +
+  accel_dumbbell_x + accel_dumbbell_y + accel_dumbbell_z + magnet_dumbbell_x +
+  magnet_dumbbell_y + magnet_dumbbell_z + roll_forearm + pitch_forearm +
+  yaw_forearm + total_accel_forearm + gyros_forearm_x + gyros_forearm_y +
+  gyros_forearm_z + accel_forearm_x + accel_forearm_y + accel_forearm_z +
+  magnet_forearm_x + magnet_forearm_y + magnet_forearm_z  
+```
+
+## Training
+Now apply random forest algorithm to the training data
+```{r cache=TRUE}
+modelFit <- randomForest(formula, data=train)
+```
+
+## In-Sample Accuracy
+We apply the resultant model on the training set and run the confusionMatrix() on the prediction.
+We note that the random forest model has 100% accuracy. 
+```{r}
+pTrain <- predict(modelFit, newdata=train)
+confusionMatrix(pTrain, train$classe)
+```
+
+
+## Cross Validation and Out-of-Sample Errors
+We now apply the prediction algorithm to our test sets.
+```{r}
+pTest <- predict(modelFit,newdata=test)
+confusionMatrix(pTest, test$classe)
+```
+
+We note that it has an overall accuracy of 99.43%. That is the accuracy we expect on the actual test data.
+
+
+# Appendix -- Actual Test Predictions
+We now generate the actual test predictions and write it out for submission
+```{r, eval=FALSE}
+pml.test <- read.csv("pml-testing.csv")
+answers <- predict(modelFit, newdata=pml.test)
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(answers)
+```
+
+The 20 submitted answers were all correct. This is expected since our cross-validation data suggest that  model is 99+% accurate.
